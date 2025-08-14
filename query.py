@@ -43,64 +43,77 @@ def search_context(query, index, texts, model, top_k=5):
 
     return "\n\n".join([texts[i] for i in filtered_indices])
 
-def call_ollama(prompt, model_name="gemma3:1b"):
-    url = "http://localhost:11434/api/generate"
-    payload = {
-        "model": model_name,
-        "prompt": prompt
-    }
+def get_ollama_models():
     try:
-        response = requests.post(url, json=payload, stream=True)
+        response = requests.get("http://localhost:11434/api/tags")
         response.raise_for_status()
+        models = response.json()["models"]
+        return [m["name"] for m in models]
+    except Exception as e:
+        print(f"Erreur API Ollama (tags): {e}")
+        return []
 
-        output = ""
-        for line in response.iter_lines():
-            if line:
-                try:
-                    json_data = json.loads(line.decode('utf-8'))
-                    output += json_data.get("response", "")
-                except json.JSONDecodeError:
-                    pass
-        return output.strip()
+def get_groq_models(api_key=API_KEY):
+    url = "https://api.groq.com/openai/v1/models"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()['data']
+        return [m['id'] for m in data]
+    except Exception as e:
+        print(f"Erreur API Groq (models): {e}")
+        return []
+
+
+def call_ollama(prompt, model_name="gemma:2b"):
+    url = "http://localhost:11434/api/generate"
+    payload = {"model": model_name, "prompt": prompt, "stream": False}
+    try:
+        response = requests.post(url, json=payload)
+        response.raise_for_status()
+        return response.json().get("response", "").strip()
     except Exception as e:
         print(f"Erreur Ollama API: {e}")
         return ""
 
-def call_groq_api(prompt, api_key=API_KEY):
+
+def call_groq_api(prompt, model_name="llama3-8b-8192", api_key=API_KEY):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
     json_data = {
-        "model": "llama3-8b-8192",
+        "model": model_name,
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": prompt},
         ],
         "max_tokens": 300,
-        "temperature": 0.3
+        "temperature": 0.3,
     }
     try:
         response = requests.post(url, headers=headers, json=json_data)
         response.raise_for_status()
         data = response.json()
-        return data['choices'][0]['message']['content']
+        return data["choices"][0]["message"]["content"]
     except Exception as e:
         print(f"Erreur Groq API: {e}")
         return ""
 
-def main(question, provider='ollama'):
+
+def main(question, provider="ollama", model_name=None):
     model = SentenceTransformer(MODEL_NAME)
     index, texts = load_index()
 
     context = search_context(question, index, texts, model)
     prompt = f"Contexte code:\n{context}\n\nQuestion:\n{question}\n\nRéponse :"
 
-    if provider == 'ollama':
-        answer = call_ollama(prompt)
+    if provider == "ollama":
+        answer = call_ollama(prompt, model_name=model_name)
     else:
-        answer = call_groq_api(prompt)
+        answer = call_groq_api(prompt, model_name=model_name)
 
     if not answer:
         answer = "⚠️ Aucun retour du modèle."
