@@ -5,10 +5,13 @@ from sentence_transformers import SentenceTransformer
 import requests
 import json
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 MODEL_NAME = 'all-MiniLM-L6-v2'
 EMBEDDING_DIM = 384
-API_KEY = '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'
+API_KEY = os.getenv("GROQ_API_KEY")
 
 def load_index(index_path='faiss.index', mapping_path='mapping.pkl'):
     if not os.path.exists(index_path) or not os.path.exists(mapping_path):
