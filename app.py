@@ -7,7 +7,7 @@ from indexer import main as index_main
 
 CODE_DIR = "./code_docs"
 
-st.title("RAG Python Code Assistant")
+st.title("RAG AI Assistant")
 
 # Initialisation session_state
 if "provider" not in st.session_state:
@@ -17,7 +17,7 @@ if "last_model" not in st.session_state:
 
 # --- Sélection Provider ---
 provider = st.selectbox(
-    "Choisissez un provider de modèle",
+    "Choose a model provider",
     ["ollama", "groq"],
     index=["ollama", "groq"].index(st.session_state.provider),
 )
@@ -25,42 +25,41 @@ if provider != st.session_state.provider:
     st.session_state.provider = provider
     st.rerun()  # Forcer le rechargement pour maj la liste des modèles
 
-# --- Sélection Modèle ---
+# --- Model Selection ---
 if st.session_state.provider == "ollama":
     models = get_ollama_models()
     if not models:
-        st.warning("Aucun modèle Ollama local trouvé. Démarrez Ollama et ajoutez un modèle (ex: `ollama run gemma:2b`).")
-else: # "groq"
+        st.warning("No local Ollama model found. Start Ollama and add a model (e.g., `ollama run gemma:2b`).")
+else:  # "groq"
     models = get_groq_models()
     if not models:
-        st.error("Impossible de récupérer les modèles Groq. Vérifiez votre clé API et la connexion.")
+        st.error("Unable to retrieve Groq models. Please check your API key and connection.")
 
-model_key = f"model_{st.session_state.provider}"
-last_used_model = st.session_state.last_model.get(st.session_state.provider)
+# Keep a separate selected model per provider
+model_state_key = f"selected_model_{st.session_state.provider}"
 
-# Déterminer l'index du modèle par défaut
-default_model_index = 0
-if last_used_model and last_used_model in models:
-    default_model_index = models.index(last_used_model)
-elif models:
-    # Si aucun dernier modèle utilisé, prendre une valeur par défaut intelligente
-    if st.session_state.provider == "ollama" and "gemma:2b" in models:
-        default_model_index = models.index("gemma:2b")
-    elif st.session_state.provider == "groq" and "llama3-8b-8192" in models:
-        default_model_index = models.index("llama3-8b-8192")
+# Initialize if needed
+if model_state_key not in st.session_state:
+    if models:
+        # Pick smart default
+        if st.session_state.provider == "ollama" and "gemma:2b" in models:
+            st.session_state[model_state_key] = "gemma:2b"
+        elif st.session_state.provider == "groq" and "llama3-8b-8192" in models:
+            st.session_state[model_state_key] = "llama3-8b-8192"
+        else:
+            st.session_state[model_state_key] = models[0]
+    else:
+        st.session_state[model_state_key] = None
 
-if "selected_model" not in st.session_state:
-    st.session_state.selected_model = models[default_model_index] if models else None
-
+# Selection UI
 selected_model = st.selectbox(
-    "Choisissez un modèle",
+    "Choose a model",
     models,
-    index=models.index(st.session_state.selected_model) if st.session_state.selected_model in models else default_model_index,
-    key=model_key,
+    index=models.index(st.session_state[model_state_key]) if st.session_state[model_state_key] in models else 0,
+    key=model_state_key
 )
 
-# Mettre à jour le dernier modèle utilisé et le modèle sélectionné
-st.session_state.last_model[st.session_state.provider] = selected_model
+# Save globally for downstream code
 st.session_state.selected_model = selected_model
 
 
@@ -90,12 +89,12 @@ if files:
     for f in files:
         col1, col2 = st.columns([4, 1])
         col1.write(f.name)
-        if col2.button("🗑 Supprimer", key=f"del_{f.name}"):
+        if col2.button("🗑 Delete", key=f"del_{f.name}"):
             os.remove(f)
             st.warning(f"{f.name} supprimé.")
-            with st.spinner("Mise à jour de l'index..."):
+            with st.spinner("Updating index..."):
                 index_main(CODE_DIR, index_path='faiss.index', mapping_path='mapping.pkl')
-            st.success("Index mis à jour après suppression ✅")
+            st.success("Index updated after deletion")
 
             # Reload page (contournement si experimental_rerun indisponible)
             st.write("""
@@ -104,26 +103,26 @@ if files:
                 </script>
                 """, unsafe_allow_html=True)
 else:
-    st.write("Aucun fichier indexé.")
+    st.write("No files indexed.")
 
 # 🔹 Zone de question
-question = st.text_area("Posez votre question sur le code")
+question = st.text_area("Ask question about your files...")
 
-if st.button("Chercher réponse"):
+if st.button("Submit prompt"):
     if not question.strip():
-        st.warning("Entrez une question.")
+        st.warning("Submit a prompt.")
     elif not st.session_state.selected_model:
-        st.error("Aucun modèle n'est sélectionné ou disponible.")
+        st.error("No model selected or available.")
     else:
-        with st.spinner("Recherche en cours..."):
+        with st.spinner("Processing..."):
             prompt, answer = rag_main(
                 question,
                 st.session_state.provider,
                 st.session_state.selected_model,
             )
 
-        with st.expander("Voir le prompt envoyé au modèle"):
+        with st.expander("See the context added to your prompt"):
             st.code(prompt)
 
-        st.subheader("Réponse du modèle")
+        st.subheader("Model's response")
         st.markdown(answer)  # Streamlit gère le markdown
