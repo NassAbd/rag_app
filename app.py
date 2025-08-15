@@ -30,37 +30,37 @@ if st.session_state.provider == "ollama":
     models = get_ollama_models()
     if not models:
         st.warning("Aucun modèle Ollama local trouvé. Démarrez Ollama et ajoutez un modèle (ex: `ollama run gemma:2b`).")
-else: # "groq"
+else:  # "groq"
     models = get_groq_models()
     if not models:
         st.error("Impossible de récupérer les modèles Groq. Vérifiez votre clé API et la connexion.")
 
-model_key = f"model_{st.session_state.provider}"
-last_used_model = st.session_state.last_model.get(st.session_state.provider)
+# Clé unique pour stocker le modèle choisi par provider
+model_key = f"selected_model_{st.session_state.provider}"
 
-# Déterminer l'index du modèle par défaut
-default_model_index = 0
-if last_used_model and last_used_model in models:
-    default_model_index = models.index(last_used_model)
-elif models:
-    # Si aucun dernier modèle utilisé, prendre une valeur par défaut intelligente
-    if st.session_state.provider == "ollama" and "gemma:2b" in models:
-        default_model_index = models.index("gemma:2b")
-    elif st.session_state.provider == "groq" and "llama3-8b-8192" in models:
-        default_model_index = models.index("llama3-8b-8192")
+# Initialisation une seule fois pour chaque provider
+if model_key not in st.session_state:
+    if models:
+        # Choix par défaut intelligent si aucun historique
+        if st.session_state.provider == "ollama" and "gemma:2b" in models:
+            st.session_state[model_key] = "gemma:2b"
+        elif st.session_state.provider == "groq" and "llama3-8b-8192" in models:
+            st.session_state[model_key] = "llama3-8b-8192"
+        else:
+            st.session_state[model_key] = models[0]
+    else:
+        st.session_state[model_key] = None
 
-if "selected_model" not in st.session_state:
-    st.session_state.selected_model = models[default_model_index] if models else None
-
+# Sélecteur lié uniquement au provider actuel
 selected_model = st.selectbox(
     "Choisissez un modèle",
     models,
-    index=models.index(st.session_state.selected_model) if st.session_state.selected_model in models else default_model_index,
+    index=models.index(st.session_state[model_key]) if st.session_state[model_key] in models else 0,
     key=model_key,
 )
 
-# Mettre à jour le dernier modèle utilisé et le modèle sélectionné
-st.session_state.last_model[st.session_state.provider] = selected_model
+# Mise à jour du dernier modèle utilisé pour ce provider
+st.session_state.last_model[st.session_state.provider] = st.session_state[model_key]
 st.session_state.selected_model = selected_model
 
 
