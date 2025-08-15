@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import os
 from pathlib import Path
@@ -15,7 +14,7 @@ if "provider" not in st.session_state:
 if "last_model" not in st.session_state:
     st.session_state.last_model = {"ollama": None, "groq": None}
 
-# --- Sélection Provider ---
+# --- Provider selection ---
 provider = st.selectbox(
     "Choose a model provider",
     ["ollama", "groq"],
@@ -23,7 +22,7 @@ provider = st.selectbox(
 )
 if provider != st.session_state.provider:
     st.session_state.provider = provider
-    st.rerun()  # Forcer le rechargement pour maj la liste des modèles
+    st.rerun()
 
 # --- Model Selection ---
 if st.session_state.provider == "ollama":
@@ -41,7 +40,7 @@ model_state_key = f"selected_model_{st.session_state.provider}"
 # Initialize if needed
 if model_state_key not in st.session_state:
     if models:
-        # Pick smart default
+        # Pick default
         if st.session_state.provider == "ollama" and "gemma:2b" in models:
             st.session_state[model_state_key] = "gemma:2b"
         elif st.session_state.provider == "groq" and "llama3-8b-8192" in models:
@@ -63,7 +62,7 @@ selected_model = st.selectbox(
 st.session_state.selected_model = selected_model
 
 
-# Création dossier si inexistant
+# Create folder if necessary
 os.makedirs(CODE_DIR, exist_ok=True)
 
 # File upload
@@ -79,7 +78,7 @@ if uploaded_files:
     # Automatic indexing
     with st.spinner("Indexing in progress..."):
         index_main(CODE_DIR, index_path="faiss.index", mapping_path="mapping.pkl")
-    st.success("Indexing finished ✅")
+    st.success("Indexing finished.")
 
 
 # Current files list with delete option
@@ -91,12 +90,12 @@ if files:
         col1.write(f.name)
         if col2.button("🗑 Delete", key=f"del_{f.name}"):
             os.remove(f)
-            st.warning(f"{f.name} supprimé.")
+            st.warning(f"{f.name} deleted.")
             with st.spinner("Updating index..."):
                 index_main(CODE_DIR, index_path='faiss.index', mapping_path='mapping.pkl')
             st.success("Index updated after deletion")
 
-            # Reload page (contournement si experimental_rerun indisponible)
+            # Reload page
             st.write("""
                 <script>
                 window.location.reload();
@@ -105,7 +104,7 @@ if files:
 else:
     st.write("No files indexed.")
 
-# 🔹 Zone de question
+# Question area
 question = st.text_area("Ask question about your files...")
 
 if st.button("Submit prompt"):
@@ -125,4 +124,4 @@ if st.button("Submit prompt"):
             st.code(prompt)
 
         st.subheader("Model's response")
-        st.markdown(answer)  # Streamlit gère le markdown
+        st.markdown(answer)

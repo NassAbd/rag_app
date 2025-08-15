@@ -1,9 +1,7 @@
-# rag_query.py
 import faiss
 import pickle
 from sentence_transformers import SentenceTransformer
 import requests
-import json
 import os
 from dotenv import load_dotenv
 
@@ -15,7 +13,7 @@ API_KEY = os.getenv("GROQ_API_KEY")
 
 def load_index(index_path='faiss.index', mapping_path='mapping.pkl'):
     if not os.path.exists(index_path) or not os.path.exists(mapping_path):
-        print("⚠️ Index ou mapping non trouvé.")
+        print("Index or mapping not found.")
         return None, []
 
     index = faiss.read_index(index_path)
@@ -28,18 +26,18 @@ def embed_query(query, model):
 
 def search_context(query, index, texts, model, top_k=5):
     if index is None or not texts:
-        return "Aucun document indexé."
+        return "No documents indexed."
 
     q_vec = embed_query(query, model)
     D, I = index.search(q_vec, top_k)
 
     if not I.any() or len(I[0]) == 0:
-        return "Aucun document pertinent trouvé."
+        return "No relevant documents found."
 
     # Sécurité si index retourné est vide ou dépasse la liste texts
     filtered_indices = [i for i in I[0] if i < len(texts)]
     if not filtered_indices:
-        return "Aucun document pertinent trouvé."
+        return "No relevant documents found."
 
     return "\n\n".join([texts[i] for i in filtered_indices])
 
@@ -62,7 +60,7 @@ def get_groq_models(api_key=API_KEY):
         data = response.json()['data']
         return [m['id'] for m in data]
     except Exception as e:
-        print(f"Erreur API Groq (models): {e}")
+        print(f"Groq API error (models): {e}")
         return []
 
 
@@ -74,7 +72,7 @@ def call_ollama(prompt, model_name="gemma:2b"):
         response.raise_for_status()
         return response.json().get("response", "").strip()
     except Exception as e:
-        print(f"Erreur Ollama API: {e}")
+        print(f"Ollama API error: {e}")
         return ""
 
 
@@ -99,7 +97,7 @@ def call_groq_api(prompt, model_name="llama3-8b-8192", api_key=API_KEY):
         data = response.json()
         return data["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"Erreur Groq API: {e}")
+        print(f"Groq API error: {e}")
         return ""
 
 
@@ -108,7 +106,7 @@ def main(question, provider="ollama", model_name=None):
     index, texts = load_index()
 
     context = search_context(question, index, texts, model)
-    prompt = f"Contexte code:\n{context}\n\nQuestion:\n{question}\n\nRéponse :"
+    prompt = f"Context code:\n{context}\n\nQuestion:\n{question}\n\nResponse :"
 
     if provider == "ollama":
         answer = call_ollama(prompt, model_name=model_name)
@@ -116,7 +114,7 @@ def main(question, provider="ollama", model_name=None):
         answer = call_groq_api(prompt, model_name=model_name)
 
     if not answer:
-        answer = "⚠️ Aucun retour du modèle."
+        answer = "No response from model."
 
     return prompt, answer
 
@@ -130,5 +128,5 @@ if __name__ == '__main__':
     prompt, answer = main(question, provider)
     print("=== Prompt ===")
     print(prompt)
-    print("\n=== Réponse ===")
+    print("\n=== Response ===")
     print(answer)

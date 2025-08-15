@@ -9,7 +9,7 @@ from docx import Document
 MODEL_NAME = "all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
 META_FILE = "index_meta.pkl"
-CACHE_FILE = "embedding_cache.pkl"  # Cache embeddings to avoid recalculation
+CACHE_FILE = "embedding_cache.pkl"
 
 
 def list_all_files(root_dir):
@@ -143,6 +143,6 @@ def main(code_dir, index_path='faiss.index', mapping_path='mapping.pkl'):
 if __name__ == '__main__':
     import sys
     if len(sys.argv) != 2:
-        print("Usage: python indexer.py <dossier_code_python>")
+        print("Usage: python indexer.py <file_path>")
         exit(1)
     main(sys.argv[1])
