@@ -3,8 +3,10 @@ import pickle
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
 import faiss
+from pypdf import PdfReader
+from docx import Document
 
-MODEL_NAME = 'all-MiniLM-L6-v2'
+MODEL_NAME = "all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
 META_FILE = "index_meta.pkl"
 CACHE_FILE = "embedding_cache.pkl"  # Cache embeddings to avoid recalculation
@@ -15,11 +17,40 @@ def list_all_files(root_dir):
     return [p for p in Path(root_dir).iterdir() if p.is_file()]
 
 
+def extract_text_from_file(file_path):
+    """Extracts text from a file based on its extension."""
+    ext = file_path.suffix.lower()
+    if ext == ".pdf":
+        try:
+            reader = PdfReader(file_path)
+            return "".join(page.extract_text() for page in reader.pages)
+        except Exception as e:
+            print(f"Error reading PDF {file_path}: {e}")
+            return None
+    elif ext == ".docx":
+        try:
+            doc = Document(file_path)
+            return "\n".join(para.text for para in doc.paragraphs)
+        except Exception as e:
+            print(f"Error reading DOCX {file_path}: {e}")
+            return None
+    # Plain text formats
+    elif ext in [".py", ".txt", ".md", ".json"]:
+        try:
+            return file_path.read_text(encoding="utf-8")
+        except Exception as e:
+            print(f"Error reading text file {file_path}: {e}")
+            return None
+    else:
+        print(f"Unsupported file type: {file_path.name}")
+        return None
+
+
 def chunk_code(code, max_lines=20):
     lines = code.splitlines()
     chunks = []
     for i in range(0, len(lines), max_lines):
-        chunk = "\n".join(lines[i:i+max_lines])
+        chunk = "\n".join(lines[i : i + max_lines])
         chunks.append(chunk)
     return chunks
 
@@ -59,20 +90,25 @@ def main(code_dir, index_path='faiss.index', mapping_path='mapping.pkl'):
     updated_meta = meta.copy()
 
     # (Re)generate embeddings for new or modified files
-    for f in current_files:
-        f_str = str(f)
+    for f_path in current_files:
+        f_str = str(f_path)
         mtime = os.path.getmtime(f_str)
         if f_str not in meta or meta[f_str] < mtime:
             changed = True
             print(f"📄 Indexing: {f_str}")
-            try:
-                code = Path(f_str).read_text(encoding="utf-8")
-                chunks = chunk_code(code)
+            content = extract_text_from_file(f_path)
+
+            if content:
+                chunks = chunk_code(content)
                 embeddings = model.encode(chunks, show_progress_bar=False)
                 cache[f_str] = (chunks, embeddings)
                 updated_meta[f_str] = mtime
-            except Exception as e:
-                print(f"Could not read or process file {f_str}, skipping. Error: {e}")
+            else:
+                # If content could not be extracted, remove from cache/meta if it existed
+                if f_str in updated_meta:
+                    updated_meta.pop(f_str)
+                    cache.pop(f_str, None)
+                    print(f"Skipped and removed failed file from index: {f_str}")
 
     # If nothing has changed, exit directly
     if not changed:
