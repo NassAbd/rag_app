@@ -30,59 +30,62 @@ if st.session_state.provider == "ollama":
     models = get_ollama_models()
     if not models:
         st.warning("Aucun modèle Ollama local trouvé. Démarrez Ollama et ajoutez un modèle (ex: `ollama run gemma:2b`).")
-else:  # "groq"
+else: # "groq"
     models = get_groq_models()
     if not models:
         st.error("Impossible de récupérer les modèles Groq. Vérifiez votre clé API et la connexion.")
 
-# Clé unique pour stocker le modèle choisi par provider
-model_key = f"selected_model_{st.session_state.provider}"
+model_key = f"model_{st.session_state.provider}"
+last_used_model = st.session_state.last_model.get(st.session_state.provider)
 
-# Initialisation une seule fois pour chaque provider
-if model_key not in st.session_state:
-    if models:
-        # Choix par défaut intelligent si aucun historique
-        if st.session_state.provider == "ollama" and "gemma:2b" in models:
-            st.session_state[model_key] = "gemma:2b"
-        elif st.session_state.provider == "groq" and "llama3-8b-8192" in models:
-            st.session_state[model_key] = "llama3-8b-8192"
-        else:
-            st.session_state[model_key] = models[0]
-    else:
-        st.session_state[model_key] = None
+# Déterminer l'index du modèle par défaut
+default_model_index = 0
+if last_used_model and last_used_model in models:
+    default_model_index = models.index(last_used_model)
+elif models:
+    # Si aucun dernier modèle utilisé, prendre une valeur par défaut intelligente
+    if st.session_state.provider == "ollama" and "gemma:2b" in models:
+        default_model_index = models.index("gemma:2b")
+    elif st.session_state.provider == "groq" and "llama3-8b-8192" in models:
+        default_model_index = models.index("llama3-8b-8192")
 
-# Sélecteur lié uniquement au provider actuel
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = models[default_model_index] if models else None
+
 selected_model = st.selectbox(
     "Choisissez un modèle",
     models,
-    index=models.index(st.session_state[model_key]) if st.session_state[model_key] in models else 0,
+    index=models.index(st.session_state.selected_model) if st.session_state.selected_model in models else default_model_index,
     key=model_key,
 )
 
-# Mise à jour du dernier modèle utilisé pour ce provider
-st.session_state.last_model[st.session_state.provider] = st.session_state[model_key]
+# Mettre à jour le dernier modèle utilisé et le modèle sélectionné
+st.session_state.last_model[st.session_state.provider] = selected_model
 st.session_state.selected_model = selected_model
 
 
 # Création dossier si inexistant
 os.makedirs(CODE_DIR, exist_ok=True)
 
-# 🔹 Upload de fichiers
-uploaded_files = st.file_uploader("Ajouter des fichiers Python (.py)", type='py', accept_multiple_files=True)
+# File upload
+uploaded_files = st.file_uploader(
+    "Add files to the knowledge base", accept_multiple_files=True
+)
 if uploaded_files:
     for f in uploaded_files:
         with open(os.path.join(CODE_DIR, f.name), "wb") as out_file:
             out_file.write(f.getbuffer())
-    st.success(f"{len(uploaded_files)} fichier(s) ajouté(s).")
+    st.success(f"{len(uploaded_files)} file(s) added.")
 
-    # Indexation automatique
-    with st.spinner("Indexation en cours..."):
-        index_main(CODE_DIR, index_path='faiss.index', mapping_path='mapping.pkl')
-    st.success("Indexation terminée ✅")
+    # Automatic indexing
+    with st.spinner("Indexing in progress..."):
+        index_main(CODE_DIR, index_path="faiss.index", mapping_path="mapping.pkl")
+    st.success("Indexing finished ✅")
 
-# 🔹 Liste des fichiers actuels avec option suppression
-st.subheader("Fichiers actuellement indexés")
-files = sorted(Path(CODE_DIR).glob("*.py"))
+
+# Current files list with delete option
+st.subheader("Currently indexed files")
+files = sorted(Path(CODE_DIR).glob("*.*"))
 if files:
     for f in files:
         col1, col2 = st.columns([4, 1])
