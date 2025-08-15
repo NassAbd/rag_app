@@ -8,6 +8,14 @@ CODE_DIR = "./code_docs"
 
 st.title("RAG AI Assistant")
 
+with st.expander("How does this work?"):
+    try:
+        with open("rag_explanation.md", "r", encoding="utf-8") as f:
+            st.markdown(f.read())
+    except FileNotFoundError:
+        st.warning("RAG explanation file not found.")
+
+
 # Initialisation session_state
 if "provider" not in st.session_state:
     st.session_state.provider = "ollama"
